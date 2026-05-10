@@ -145,6 +145,15 @@ FastAPI Server (main.py)
 6. Add advanced chunking strategies
 7. Performance optimization for large datasets
 
+## Day 2 (What I implemented)
+
+- **GitHubConnector**: Added `GitHubConnector` to `connectors.py` to fetch markdown/text files recursively from a GitHub repository (supports optional `GITHUB_TOKEN` via `.env`).
+- **Batch indexing endpoints**: Added two endpoints in `main.py`:
+  - `POST /api/v1/index/directory` — recursively index Markdown/text files from a local directory.
+  - `POST /api/v1/index/github` — index markdown/text files from a GitHub repo (`owner` + `repo`, optional `path`).
+
+These Day 2 changes let you index many files at once and pull documentation from GitHub to populate the local semantic index.
+
 ## File Structure
 
 ```

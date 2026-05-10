@@ -10,6 +10,8 @@ from embeddings import embedding_service
 from storage import storage_service
 from search import search_service
 from connectors import FileConnector, MarkdownConnector
+from connectors import GitHubConnector
+import os
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0")
@@ -94,6 +96,103 @@ def index_file(file_path: str) -> dict:
             "chunks_indexed": indexed_count,
             "source": connector.source_name
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/index/directory")
+def index_directory(dir_path: str) -> dict:
+    """
+    Index all supported files in a directory (recursively).
+    """
+    try:
+        if not os.path.isdir(dir_path):
+            raise HTTPException(status_code=400, detail="Directory not found")
+
+        supported_exts = ('.md', '.markdown', '.txt')
+        total_chunks = 0
+        total_indexed = 0
+
+        for root, _, files in os.walk(dir_path):
+            for fname in files:
+                fpath = os.path.join(root, fname)
+                # Skip binary files
+                if not any(fname.lower().endswith(ext) for ext in supported_exts):
+                    continue
+
+                # Choose connector
+                if fname.lower().endswith('.md'):
+                    connector = MarkdownConnector(fpath)
+                else:
+                    connector = FileConnector(fpath)
+
+                chunks = connector.fetch_content()
+                total_chunks += len(chunks)
+                for chunk in chunks:
+                    embedding = embedding_service.embed_text(chunk.content)
+                    indexed_item = {
+                        'id': str(uuid.uuid4()),
+                        'content_chunk_id': str(uuid.uuid4()),
+                        'source': chunk.source,
+                        'title': chunk.title,
+                        'content': chunk.content,
+                        'embedding': embedding,
+                        'metadata': {
+                            **chunk.metadata,
+                            'url': chunk.url
+                        },
+                        'indexed_at': datetime.now()
+                    }
+                    from models import IndexedContent
+                    indexed_content = IndexedContent(**indexed_item)
+                    if storage_service.store_indexed_content(indexed_content):
+                        total_indexed += 1
+
+        return {
+            'status': 'success',
+            'directory': dir_path,
+            'chunks_found': total_chunks,
+            'chunks_indexed': total_indexed
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/index/github")
+def index_github(owner: str, repo: str, path: str = "") -> dict:
+    """
+    Index markdown/text files from a GitHub repository.
+    Provide `owner` and `repo` (e.g., owner='octocat', repo='Hello-World').
+    Optional `path` to limit to a subfolder.
+    """
+    try:
+        connector = GitHubConnector(owner=owner, repo=repo, path=path)
+        content_chunks = connector.fetch_content()
+        if not content_chunks:
+            return {"status": "success", "owner": owner, "repo": repo, "chunks_indexed": 0}
+
+        indexed_count = 0
+        for chunk in content_chunks:
+            embedding = embedding_service.embed_text(chunk.content)
+            indexed_item = {
+                'id': str(uuid.uuid4()),
+                'content_chunk_id': str(uuid.uuid4()),
+                'source': chunk.source,
+                'title': chunk.title,
+                'content': chunk.content,
+                'embedding': embedding,
+                'metadata': {
+                    **chunk.metadata,
+                    'url': chunk.url
+                },
+                'indexed_at': datetime.now()
+            }
+            from models import IndexedContent
+            indexed_content = IndexedContent(**indexed_item)
+            if storage_service.store_indexed_content(indexed_content):
+                indexed_count += 1
+
+        return {"status": "success", "owner": owner, "repo": repo, "chunks_indexed": indexed_count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

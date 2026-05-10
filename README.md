@@ -1,184 +1,96 @@
-# ContextBridge - Day 1
+# ContextBridge
 
-**Status: MVP Foundation - Minimal Viable Semantic Search**
+ContextBridge is a compact semantic search engine and context layer for LLM-powered applications. It ingests text content from files and external sources, converts content into vector embeddings,+ stores them in a local index, and exposes search and indexing APIs to retrieve relevant context for downstream language model usage.
 
-## What's Built
+## Features
 
-Day 1 of ContextBridge provides the core indexing and semantic search infrastructure:
+- Ingest content from local files and connectors
+- Generate embeddings (pluggable embedding backend)
+- Store embeddings and metadata in a lightweight local database
+- Perform semantic search with cosine similarity
+- HTTP API (FastAPI) for indexing and retrieval
 
-### Core Components
-- **Embedding Service**: Uses `sentence-transformers` to generate vector embeddings for text
-- **Storage Layer**: SQLite database for storing indexed content with embeddings
-- **Search Service**: Semantic search using cosine similarity on embeddings
-- **Connectors**: Base connector interface with File and Markdown implementations
-- **FastAPI Server**: REST API for indexing and searching
+## Quickstart
 
-### APIs Available
+Prerequisites: Python 3.8+ and pip.
 
-#### 1. Health Check
-```
-GET /
-```
-Returns server status and configuration.
+1. Install dependencies:
 
-#### 2. Index a File
-```
-POST /api/v1/index/file
-Content-Type: application/x-www-form-urlencoded
-
-file_path=/path/to/file.md
-```
-Reads a file, generates embeddings, and stores indexed content.
-
-#### 3. Search
-```
-POST /api/v1/search
-Content-Type: application/json
-
-{
-  "query": "how to optimize database queries",
-  "sources": ["markdown", "file"],  // optional
-  "limit": 10,
-  "threshold": 0.5  // optional similarity threshold
-}
-```
-Performs semantic search and returns ranked results with similarity scores.
-
-#### 4. Get All Content
-```
-GET /api/v1/content/all?source=markdown
-```
-Lists all indexed content, optionally filtered by source.
-
-#### 5. Get Specific Content
-```
-GET /api/v1/content/{content_id}
-```
-Retrieves full details of a single indexed item.
-
-#### 6. Delete Content
-```
-DELETE /api/v1/content/{content_id}
-```
-Removes content from the index.
-
-## Setup & Running
-
-### 1. Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Configure Environment (Optional)
+2. (Optional) Copy and edit environment variables:
+
 ```bash
 cp .env.example .env
-# Edit .env if needed (defaults are sensible for MVP)
 ```
 
-### 3. Start the Server
+3. Start the API server:
+
 ```bash
 python main.py
 ```
-Server runs on `http://localhost:8000`
 
-### 4. API Documentation
-Navigate to `http://localhost:8000/docs` (Swagger UI) to explore and test APIs interactively.
+The server listens on `http://localhost:8000` and Swagger UI is available at `/docs`.
 
-## Day 1 Quick Demo
+## Common API Endpoints
 
-### Index a Markdown File
-```bash
-curl -X POST "http://localhost:8000/api/v1/index/file" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "file_path=/path/to/your/file.md"
-```
+- `GET /` — Health check and basic configuration
+- `POST /api/v1/index/file` — Index a single file (form data: `file_path`)
+- `POST /api/v1/index/directory` — Recursively index a local directory
+- `POST /api/v1/index/github` — Index markdown/text files from a GitHub repo
+- `POST /api/v1/search` — Semantic search (JSON: `query`, optional filters)
+- `GET /api/v1/content/all` — List indexed content
+- `GET /api/v1/content/{content_id}` — Retrieve a specific indexed item
+- `DELETE /api/v1/content/{content_id}` — Remove an item from the index
 
-### Search
-```bash
-curl -X POST "http://localhost:8000/api/v1/search" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "your search query here",
-    "limit": 5
-  }'
-```
+Refer to the live Swagger UI at `/docs` for request/response details.
 
-## Architecture
-
-```
-FastAPI Server (main.py)
-    ↓
-├── Embedding Service (embeddings.py)
-│   └── Uses sentence-transformers for vector generation
-├── Storage Service (storage.py)
-│   └── SQLite database with embedding vectors
-├── Search Service (search.py)
-│   └── Semantic search via cosine similarity
-└── Connectors (connectors.py)
-    ├── FileConnector
-    └── MarkdownConnector
-```
-
-## Data Models
-
-- **ContentChunk**: Raw content extracted from a source
-- **IndexedContent**: Stored content with embedding vector
-- **SearchQuery**: Search request with filters
-- **SearchResponse**: Ranked search results with similarity scores
-
-## Limitations (Day 1)
-
-- Single-source indexing (no cross-source linking yet)
-- No authentication/authorization
-- SQLite only (not suitable for large scale)
-- Basic chunking strategy (no overlap, no smart section splitting)
-- No incremental sync (full re-index required)
-- No concurrent request handling optimization
-
-## Next Steps (Day 2+)
-
-1. Add connector for external sources (GitHub, Notion)
-2. Implement cross-source context linking
-3. Add batch indexing and incremental sync
-4. Build simple web UI for search
-5. Implement user authentication
-6. Add advanced chunking strategies
-7. Performance optimization for large datasets
-
-## Day 2 (What I implemented)
-
-- **GitHubConnector**: Added `GitHubConnector` to `connectors.py` to fetch markdown/text files recursively from a GitHub repository (supports optional `GITHUB_TOKEN` via `.env`).
-- **Batch indexing endpoints**: Added two endpoints in `main.py`:
-  - `POST /api/v1/index/directory` — recursively index Markdown/text files from a local directory.
-  - `POST /api/v1/index/github` — index markdown/text files from a GitHub repo (`owner` + `repo`, optional `path`).
-
-These Day 2 changes let you index many files at once and pull documentation from GitHub to populate the local semantic index.
-
-## File Structure
+## Project Layout
 
 ```
 contextbridge/
-├── main.py              # FastAPI application
-├── config.py            # Configuration management
-├── models.py            # Pydantic data models
-├── embeddings.py        # Embedding service
-├── storage.py           # Database operations
-├── search.py            # Search logic
-├── connectors.py        # Data source connectors
-├── requirements.txt     # Python dependencies
-├── .env.example        # Environment variables template
-└── data/               # Created on first run
-    └── contextbridge.db  # SQLite database
+├── main.py        # FastAPI application and HTTP routes
+├── config.py      # Configuration and environment handling
+├── models.py      # Pydantic request/response models
+├── embeddings.py  # Embedding backend wrapper
+├── storage.py     # Database and persistence logic
+├── search.py      # Semantic search utilities
+├── connectors.py  # Content connectors (file, markdown, GitHub, ...)
+├── requirements.txt
+├── example_content.md
+└── data/          # runtime data (SQLite DB created here)
 ```
 
-## Technology Stack
+## Configuration
 
-- **FastAPI**: Web framework
-- **sentence-transformers**: Embeddings generation
-- **SQLite**: Vector storage
-- **Pydantic**: Data validation
-- **NumPy**: Vector operations
+Settings are read from environment variables (see `.env.example`). Key configs include embedding backend selection, database path, and optional GitHub token for repository connectors.
+
+## Development Notes
+
+- Embedding generation is pluggable; `sentence-transformers` is used by default in the MVP.
+- Storage currently uses SQLite suitable for local/small datasets. Swap in a production vector DB for scale.
+- Chunking and retrieval are intentionally simple; advanced strategies (overlap, hierarchical indexing) are planned.
+
+## Contributing
+
+Contributions are welcome. For bug fixes or features:
+
+1. Fork the repo
+2. Create a topic branch
+3. Open a PR describing changes
+
+Please include tests for new features where applicable.
+
+## License
+
+This project is provided under the MIT License — see the `LICENSE` file if present.
+
+## Contact
+
+For questions or help, open an issue or contact the maintainer via the repository.
 
 ---
 
-**Built on Day 1 with MVP principles: Simple, functional, extensible.**
+_This README replaces the initial "Day 1" draft with a concise, practical overview for developers and integrators._

@@ -92,5 +92,3 @@ This project is provided under the MIT License — see the `LICENSE` file if pre
 For questions or help, open an issue or contact the maintainer via the repository.
 
 ---
-
-_This README replaces the initial "Day 1" draft with a concise, practical overview for developers and integrators._
